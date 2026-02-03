@@ -1,24 +1,27 @@
 {
-  "name": "yt-download-api",
-  "version": "1.0.0",
-  "description": "A simple API to get direct audio and video download URLs from YouTube using yt-dlp, designed for cloud deployment.",
+  "name": "youtube-download-api-optimized",
+  "version": "2.0.0",
+  "description": "Fast YouTube video/audio download API optimized for Koyeb with keep-alive",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node index.js"
   },
   "keywords": [
     "youtube",
     "download",
     "api",
-    "yt-dlp",
-    "node.js",
-    "koyeb",
-    "replit"
+    "video",
+    "audio"
   ],
-  "author": "pancha2000 cdilrukshi52@gmail.com",
+  "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.21.2",
-    "dotenv": "^16.4.5"
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "node-cache": "^5.1.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }

@@ -1,47 +1,53 @@
-# Node.js app එක සඳහා base image එකක් ලෙස Node.js LTS (Long Term Support) version එකක් තෝරන්න.
-# `slim` version එක සාමාන්‍යයෙන් කුඩා වන අතර අවශ්‍ය දේ පමණක් අඩංගු වේ.
-FROM node:20-slim
+# Multi-stage build - minimize final image size
+FROM node:18-alpine AS builder
 
-# yt-dlp ස්ථාපනය කිරීමට අවශ්‍ය system dependencies (Python, pip) ස්ථාපනය කරන්න.
-# apt-get update && apt-get install -y --no-install-recommends: packages update කරගෙන, install කරන packages වල dependencies install නොකර,
-# install කිරීමෙන් image size එක අඩුකරගත හැක.
-# cache එක delete කරන්න image size එක තවදුරටත් අඩුකරන්න.
-# python3-venv අවශ්‍ය වන්නේ virtual environment සෑදීමටයි.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
-    git \
-    ffmpeg && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# yt-dlp සහ requests python pip භාවිතයෙන් ස්ථාපනය කරන්න.
-# --break-system-packages flag එක 'externally-managed-environment' දෝෂය මඟහරිනවා.
-# requests library එක HTTPS proxy support සඳහා අවශ්‍යයි.
-RUN pip install yt-dlp requests --break-system-packages
-
-# Application code එක සඳහා working directory එකක් සකසන්න.
 WORKDIR /app
 
-# package.json සහ package-lock.json (තිබේ නම්) copy කරන්න.
-# මේවා මුලින්ම copy කිරීමෙන් Docker's layer caching භාවිතයෙන් build වේගවත් කළ හැක.
+# Install build dependencies
+RUN apk add --no-cache python3 make g++ ffmpeg
+
+# Copy package files
 COPY package*.json ./
 
-# Node.js dependencies ස්ථාපනය කරන්න.
-RUN npm install --omit=dev
+# Install dependencies with production flag
+RUN npm ci --only=production && npm cache clean --force
 
-# ඉතිරි application code එක copy කරන්න.
-# මෙහිදී youtube_cookies.txt ගොනුවද copy වේ.
-COPY . .
+# Final stage
+FROM node:18-alpine
 
-# Environment variable එකක් ලෙස PORT එක Define කරන්න. Koyeb මෙය auto set කරයි.
-# ඔබේ Node.js app එක process.env.PORT භාවිතා කරන නිසා මෙය අනිවාර්ය නොවේ,
-# නමුත් Dockerfile එකේ මෙය තිබීම හොඳ පුරුද්දකි.
-ENV PORT=${PORT:-3000}
+WORKDIR /app
 
-# Application එක run වන port එක expose කරන්න (Koyeb මෙය auto detect කරයි).
+# Install runtime dependencies only
+RUN apk add --no-cache \
+    ffmpeg \
+    python3 \
+    curl \
+    wget
+
+# Install yt-dlp
+RUN apk add --no-cache yt-dlp
+
+# Copy node modules from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy application files
+COPY index.js .
+COPY package.json .
+COPY .env* ./
+COPY youtube_cookies.txt* ./cookies.txt* ./
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+USER nodejs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Expose port
 EXPOSE 3000
 
-# Application එක ආරම්භ කිරීමට විධානය සකසන්න.
+# Start application
 CMD ["npm", "start"]
